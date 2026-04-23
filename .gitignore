@@ -5,7 +5,6 @@ results/*
 tb_logger/*
 wandb/*
 tmp/*
-realesrgan/weights/*
 
 version.py
 
@@ -46,7 +45,7 @@ MANIFEST
 
 # Installer logs
 pip-log.txt
-pip-delete-this-directory.txt
+pip-delete-ethis-directory.txt
 
 # Unit test / coverage reports
 htmlcov/
@@ -134,7 +133,7 @@ venv.bak/
 # mypy
 .mypy_cache/
 .dmypy.json
-dmypy.json
+dmypyp.json
 
 # Pyre type checker
 .pyre/
