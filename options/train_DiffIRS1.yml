@@ -1,0 +1,143 @@
+# general settings
+name: train_DiffIRS1
+model_type: DiffIRS1Model
+scale: 1
+num_gpu: auto  # auto: can infer from your visible devices automatically. official: 8 GPUs
+manual_seed: 0
+
+# dataset and data loader settings
+datasets:
+  train:
+    name: TrainSet
+    type: DeblurPairedDataset
+    #dataroot_gt: /root/motion_deblur/train_crops/target_crops
+    #dataroot_lq: /root/motion_deblur/train_crops/input_crops
+    #dataroot_gt: /home/un/world/yx/datasets/QIN_LUNG_CT_train/train/full
+    #dataroot_lq: /home/un/world/yx/datasets/QIN_LUNG_CT_train/train/low
+    #dataroot_gt: /home/b109/lxb/DiffIR-master/DiffIR-demotionblur/Datasets/train_crops/target_crops
+    #dataroot_lq: /home/b109/lxb/DiffIR-master/DiffIR-demotionblur/Datasets/train_crops/input_crops
+    dataroot_gt : /home/un/world/yx/DiffIR-master/DiffIR-demotionblur/pre_log_datasets/train/full
+    dataroot_lq: /home/un/world/yx/DiffIR-master/DiffIR-demotionblur/pre_log_datasets/train/low
+    geometric_augs: true
+
+    filename_tmpl: '{}'
+    io_backend:
+      type: disk
+
+    num_worker_per_gpu: 1
+    batch_size_per_gpu: 1
+    #mini_batch_sizes: [1,1,1,1,1,1] #[8,4,2,2,1,1]             # Batch size per gpu
+    #iters: [92000,80000,38000,33000,33000,24000]
+    #iters: [30000,20000,20000,10000,20000,200000]
+    #iters: [100000,100000,100000]
+    #iters: [15000, 25000, 35000, 45000, 55000, 115000]  # 原[30000,20000,20000,10000,20000,200000]，均衡各分辨率训练时长
+    gt_size: 720 # Max patch size for progressive training
+    #gt_sizes: [720,720,720,720]
+    gt_sizes: [ 512, 720, 720, 720, 720,720 ]  # 恢复原始尺寸序列
+    mini_batch_sizes: [ 1, 1, 1, 1, 1, 1 ]       # 小尺寸时batch加倍 (利用显存冗余)
+    iters: [ 25000, 35000, 45000, 55000, 65000, 75000 ]  # 延长训练总周期
+    #gt_sizes: [256,384,512,640,720,720] #[192, 256,320,384,464,512]  # Patch sizes for progressive training.
+    #gt_sizes: [ 384,512,640,720,720,720 ]  # 原[256,384,512,640,720,720]，增大初始训练尺寸
+
+    # data loader
+    use_shuffle: true
+    dataset_enlarge_ratio: 1
+    prefetch_mode: ~
+
+  # Uncomment these for validation
+  val:
+    name: ValSet
+    type: DeblurPairedDataset
+    #dataroot_gt: /root/motion_deblur/val/GoPro/target_crops
+    #dataroot_lq: /root/motion_deblur/val/GoPro/input_crops
+    #dataroot_gt: /home/un/world/yx/datasets/QIN_LUNG_CT_train/val/full
+    #dataroot_lq: /home/un/world/yx/datasets/QIN_LUNG_CT_train/val/low
+    #dataroot_gt: /home/b109/lxb/DiffIR-master/DiffIR-demotionblur/Datasets/train_crops/target_crops
+    #dataroot_lq: /home/b109/lxb/DiffIR-master/DiffIR-demotionblur/Datasets/train_crops/input_crops
+    dataroot_gt: /home/un/world/yx/DiffIR-master/DiffIR-demotionblur/pre_log_datasets/val/full
+    dataroot_lq: /home/un/world/yx/DiffIR-master/DiffIR-demotionblur/pre_log_datasets/val/low
+    io_backend:
+      type: disk
+
+# network structures
+network_g:
+  type: DiffIRS1
+  n_encoder_res: 6 #6
+  inp_channels: 3
+  out_channels: 3
+  dim: 24 #48
+  num_blocks: [1,3,4,5] #[3,5,6,6]
+  num_refinement_blocks: 4 #4
+  heads: [1,2,4,8] #[1,2,4,8]
+  ffn_expansion_factor: 1 #2
+  bias: False
+  LayerNorm_type: WithBias
+
+# path
+path:
+  pretrain_network_g: ~
+  param_key_g: params_ema
+  strict_load_g: true
+  resume_state: ~ #/home/un/world/yx/DiffIR-master/DiffIR-demotionblur/experiments/train_DiffIRS1/training_states/115000.state #/home/un/world/yx/DiffIR-master/DiffIR-demotionblur/experiments/train_DiffIRS1_archived_20250630_101022/training_states/130000.state #/home/un/world/yx/DiffIR-master/DiffIR-demotionblur/experiments/train_DiffIRS1/training_states/60000.state
+
+# training settings
+train:
+  ema_decay: 0.999
+
+  optim_g:
+    type: Adam
+    lr: !!float 1.5e-4
+    weight_decay: 0 #!!float 1e-4  #0
+    betas: [0.9, 0.999]
+
+  scheduler:
+    type: CosineAnnealingRestartCyclicLR
+    #periods: [100000,100000,100000]
+    restart_weights: [1,1,1]
+    #eta_mins: [0.00005,0.00001,0.000001]
+    periods: [ 120000, 100000, 80000 ]  # 延长第一阶段训练周期 (原[100000,100000,100000])
+    eta_mins: [ 0.00003, 0.000005, 0.0000005 ]  # 更平缓的学习率衰减 (原[0.00005,0.00001,0.000001])
+    #eta_mins: [0.000285,0.000001]
+
+  total_iter: 300000
+  warmup_iter: -1  # no warm up
+
+  mixing_augs:
+    mixup: false
+    mixup_beta: 1.2
+    use_identity: true
+
+  # losses
+  pixel_opt:
+    #type: L1Loss
+    #loss_weight: 1
+    #reduction: mean
+    type: L1Loss
+    loss_weight: 1
+    reduction: mean
+
+# Uncomment these for validation
+# validation settings
+val:
+  val_freq: !!float 5e3
+  save_img: False
+
+  metrics:
+    psnr: # metric name
+      type: calculate_psnr
+      crop_border: 0
+      test_y_channel: false
+
+# logging settings
+logger:
+  print_freq: 1000
+  save_checkpoint_freq: !!float 5e3
+  use_tb_logger: true
+  wandb:
+    project: ~
+    resume_id: ~
+
+# dist training settings
+dist_params:
+  backend: nccl
+  port: 29500
